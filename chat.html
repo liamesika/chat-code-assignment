@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <title data-i18n="chatPageTitle">צ'אט עם המנטור שלך</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="style-sheet/styles.css">
+  <link rel="stylesheet" href="style-sheet/header.css" />
+  <link rel="stylesheet" href="style-sheet/footer.css" />
+  <link rel="stylesheet" href="style-sheet/features.css" />
+</head>
+<body class="text-white min-h-screen flex flex-col relative overflow-hidden animated-bg">
+
+  <button id="lang-toggle" class="absolute top-4 left-4 text-sm bg-blue-700 px-2 py-1 rounded w-12 z-50">עברית</button>
+
+  <header class="header flex-center">
+    <a href="index.html" class="logo flex">
+      <div class="logo flex">
+        <div class="logo-icon">
+          <img src="homepage-media/logo.png" alt="Logo Icon" class="logo-icon" />
+        </div>
+        <div class="logo-text">
+          <img src="homepage-media/TradeMind.svg" alt="TradeMind" />
+        </div>
+      </div>
+    </a>
+    <nav class="menu flex">
+      <a href="/index.html" class="menu-text flex" data-i18n="navHome">Home</a>
+      <a href="/register.html" class="menu-text flex" id="features-link" data-i18n="navFeatures">Features</a>
+      <a href="#how" class="menu-text flex" data-i18n="navHowItWorks">How It Works</a>
+      <a href="#pricing" class="menu-text flex" data-i18n="navPricing">Pricing</a>
+      <a href="#contact" class="menu-text flex" data-i18n="navContact">Contact Us</a>
+    </nav>
+    <div class="btns flex" id="signup-button">
+      <a href="/register.html" class="btn-small flex-center">
+        <div class="btn-small-frame flex-center">
+          <span class="btn-small-text" data-i18n="navSignUp">Sign Up</span>
+        </div>
+      </a>
+    </div>
+    <div class="log-in flex-center" id="login-button">
+      <a href="/login.html" class="btn-small flex-center">
+        <span class="log-in-dot"></span>
+        <span class="log-in-text" data-i18n="navLogin">Log In</span>
+      </a>
+    </div>
+    <div id="user-greeting" style="display: none; color: white; font-weight: bold; padding-inline: 1rem;">
+      שלום, <span id="user-name"></span>
+    </div>
+  </header>
+
+  <div class="mentor-floating">
+    <img id="mentor-avatar" src="image/robot.png" alt="מנטור">
+  </div>
+
+  <div class="relative z-10 max-w-3xl w-full mx-auto mt-24 px-4 flex flex-col flex-grow">
+    <div class="flex items-center gap-4 mb-6">
+      <img id="mentor-img" class="w-16 h-16 rounded-full border-2 border-blue-500" src="" alt="מנטור">
+      <div>
+        <h2 id="mentor-name" class="text-lg font-bold" data-i18n="mentorNameLabel"></h2>
+        <p data-i18n="chatSubtitle" class="text-gray-300 text-sm"></p>
+      </div>
+    </div>
+    <div id="chat-box" class="flex-grow rounded-xl p-5 overflow-y-auto mb-4 space-y-3 border border-blue-900 shadow-[inset_0_0_10px_#000] shadow-2xl bg-gradient-to-br from-[#0f172a] via-[#111827] to-[#0f172a]">
+    </div>
+    <div class="flex gap-2">
+      <input id="user-input" type="text" data-i18n="chatPlaceholder" placeholder="" class="flex-grow p-3 rounded bg-white/10 text-white placeholder-gray-400 backdrop-blur-sm border border-gray-500/30">
+      <button id="send-btn" data-i18n="send" class="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 px-4 py-2 rounded font-bold shadow-lg transition">שלח</button>
+    </div>
+  </div>
+
+  <script type="module" src="scripts/firebase-init.js"></script>
+  <script type="module" src="global-init.js"></script>
+  <script type="module">
+    import { initChatAutoload } from "/scripts/chat-autoload.js";
+
+    const chatboxEl = document.getElementById("chat-box");
+    const input = document.getElementById("user-input");
+    const sendBtn = document.getElementById("send-btn");
+    const mentorName = localStorage.getItem("mentorName") || "המנטור שלך";
+
+    window.chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "[]");
+
+    function appendMessage(sender, text, cls) {
+      const div = document.createElement("div");
+      div.className = `message ${cls} p-2 rounded bg-gray-800/80 border border-purple-600`;
+      div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+      chatboxEl.appendChild(div);
+      chatboxEl.scrollTop = chatboxEl.scrollHeight;
+    }
+
+    initChatAutoload(chatboxEl, appendMessage).then(() => {
+      sendBtn.addEventListener("click", sendMessage);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") sendMessage();
+      });
+    });
+
+    async function sendMessage() {
+      const userMessage = input.value.trim();
+      if (!userMessage) return;
+
+      const lang = localStorage.getItem("lang") || "he";
+      const userLabel = lang === "he" ? "🟢 אתה" : "🟢 You";
+      const botLabel = lang === "he" ? "🤖 " + mentorName : "🤖 " + mentorName;
+
+      appendMessage(userLabel, userMessage, "user");
+      window.chatHistory.push({ role: "user", content: userMessage });
+      input.value = "";
+
+      try {
+        const res = await fetch("https://us-central1-trade-mind-9fe52.cloudfunctions.net/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: window.chatHistory }),
+      });
+
+
+        const data = await res.json();
+        if (!data.reply) {
+          appendMessage(botLabel, "⚠️ שגיאה: לא התקבלה תשובה מהשרת", "bot");
+          return;
+        }
+
+        appendMessage(botLabel, data.reply, "bot");
+        window.chatHistory.push({ role: "assistant", content: data.reply });
+        localStorage.setItem("chatHistory", JSON.stringify(window.chatHistory));
+
+        if (window.chatRef?.path) {
+          const { getFirestore, setDoc } = await import("https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js");
+          const db = getFirestore();
+          await setDoc(window.chatRef, { messages: window.chatHistory });
+          console.log("✅ שיחה נשמרה ל-Firestore");
+        } else {
+          console.warn("⚠️ window.chatRef לא מוגדר");
+        }
+      } catch (err) {
+        appendMessage(botLabel, "⚠️ שגיאה בשליחה לשרת", "bot");
+        console.error("❌ שגיאה בצ'אט:", err);
+      }
+    }
+  </script>
+
+  <script>
+    document.getElementById("lang-toggle").addEventListener("click", () => {
+      const current = localStorage.getItem("lang") || "he";
+      const next = current === "he" ? "en" : "he";
+      localStorage.setItem("lang", next);
+      location.reload();
+    });
+
+    function logout() {
+      localStorage.clear();
+    }
+    window.logout = logout;
+  </script>
+
+  <style>
+    #signup-button,
+    #login-button,
+    #user-greeting {
+      display: none;
+    }
+  </style>
+</body>
+</html>
